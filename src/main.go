@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"regexp"
 
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/oauth2"
@@ -246,14 +247,34 @@ func Init(authOpts map[string]string, logLevel log.Level) error {
 	return nil
 }
 
-func GetUser(username, password, clientid string) bool {
-	// Get token for the credentials and verify the user
-	log.Infof("Checking user with oauth plugin.")
-	if password == "" {
-		// If no password was delivered the username is interpreted as a token
-		return createUserWithToken(username)
+
+// Helper function to determine if a string looks like an OAuth token
+func isOAuthToken(password string) bool {
+	// Example check for a typical JWT format (three segments separated by dots)
+	// You can enhance this regex if needed for other token formats
+	tokenRegex := `^[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+\.[A-Za-z0-9-_]+$`
+
+	// Match the password against the regex
+	matched, err := regexp.MatchString(tokenRegex, password)
+	if err != nil {
+		log.Errorf("Error while matching token regex: %v", err)
+		return false
 	}
 
+	return matched
+}
+
+func GetUser(username, password, clientid string) bool {
+	// Log the check
+	log.Infof("Checking user with oauth plugin.")
+
+	// Check if the password looks like an OAuth token
+	if isOAuthToken(password) {
+		log.Infof("Password looks like an OAuth token, treating it as a token.")
+		return createUserWithToken(password)
+	}
+
+	// Fall back to username/password authentication
 	return createUserWithCredentials(username, password)
 }
 
